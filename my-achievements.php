@@ -9,11 +9,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
     exit();
 }
 
-// Kazanılan rozetleri getir
+// Tüm rozetleri getir (kazanılanlar ve kazanılmayanlar)
 $stmt = $db->prepare("
     SELECT 
         a.*,
-        ua.earned_date
+        ua.earned_date,
+        CASE WHEN ua.id IS NOT NULL THEN 1 ELSE 0 END as is_earned
     FROM achievements a
     LEFT JOIN user_achievements ua ON a.id = ua.achievement_id 
         AND ua.user_id = ?
@@ -23,6 +24,11 @@ $stmt = $db->prepare("
 ");
 $stmt->execute([$_SESSION['user_id']]);
 $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// İstatistikler
+$earned_count = array_sum(array_column($achievements, 'is_earned'));
+$total_count = count($achievements);
+$completion_rate = $total_count > 0 ? ($earned_count / $total_count) * 100 : 0;
 ?>
 
 <!DOCTYPE html>
@@ -43,14 +49,34 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <h1>Başarı Rozetlerim</h1>
                 </div>
 
+                <!-- Rozet İstatistikleri -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <h6>Kazanılan Rozet</h6>
+                                <h2><?php echo $earned_count; ?></h2>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Toplam Rozet</h6>
+                                <h2><?php echo $total_count; ?></h2>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Tamamlanma Oranı</h6>
+                                <h2>%<?php echo number_format($completion_rate, 1); ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Rozetler -->
                 <div class="row">
                     <?php foreach ($achievements as $achievement): ?>
                         <div class="col-md-4 mb-4">
-                            <div class="card h-100 <?php echo $achievement['earned_date'] ? '' : 'opacity-50'; ?>">
+                            <div class="card h-100 <?php echo $achievement['is_earned'] ? '' : 'opacity-50'; ?>">
                                 <div class="card-body text-center">
                                     <i class="bi <?php echo $achievement['icon']; ?> display-1 mb-3 
-                                        <?php echo $achievement['earned_date'] ? 'text-warning' : 'text-muted'; ?>">
+                                        <?php echo $achievement['is_earned'] ? 'text-warning' : 'text-muted'; ?>">
                                     </i>
                                     <h5 class="card-title">
                                         <?php echo htmlspecialchars($achievement['name']); ?>
@@ -58,7 +84,7 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <p class="card-text">
                                         <?php echo htmlspecialchars($achievement['description']); ?>
                                     </p>
-                                    <?php if ($achievement['earned_date']): ?>
+                                    <?php if ($achievement['is_earned']): ?>
                                         <div class="alert alert-success">
                                             <i class="bi bi-check-circle me-2"></i>
                                             <?php echo date('d.m.Y', strtotime($achievement['earned_date'])); ?> 
@@ -67,7 +93,20 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <?php else: ?>
                                         <div class="alert alert-secondary">
                                             <i class="bi bi-lock me-2"></i>
-                                            Henüz kazanılmadı
+                                            <?php
+                                            $criteria = json_decode($achievement['criteria'], true);
+                                            switch ($criteria['type']) {
+                                                case 'exam_count':
+                                                    echo "{$criteria['value']} sınav tamamla";
+                                                    break;
+                                                case 'avg_score':
+                                                    echo "Ortalama %{$criteria['value']} başarı yakala";
+                                                    break;
+                                                case 'study_time':
+                                                    echo "{$criteria['value']} saat çalış";
+                                                    break;
+                                            }
+                                            ?>
                                         </div>
                                     <?php endif; ?>
                                 </div>
