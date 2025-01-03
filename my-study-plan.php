@@ -9,45 +9,60 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
     exit();
 }
 
-// Aktif çalışma planını getir
-$stmt = $db->prepare("
-    SELECT 
-        sp.*,
-        st.topic_id,
-        st.target_date,
-        st.completion_status,
-        t.name as topic_name
-    FROM study_plans sp
-    JOIN study_topics st ON sp.id = st.plan_id
-    JOIN topics t ON st.topic_id = t.id
-    WHERE sp.user_id = ? AND sp.status = 'active'
-    ORDER BY st.target_date ASC
-");
-$stmt->execute([$_SESSION['user_id']]);
-$study_topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Konuları grupla
-$weekly_plan = [];
-foreach ($study_topics as $topic) {
-    $week = date('W', strtotime($topic['target_date']));
-    $weekly_plan[$week][] = $topic;
-}
-
-// İlerleme durumunu güncelle
+// İlerleme güncelleme
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['topic_id'])) {
     $stmt = $db->prepare("
         UPDATE study_topics 
         SET completion_status = ? 
-        WHERE topic_id = ? AND plan_id = ?
+        WHERE topic_id = ? AND plan_id IN (
+            SELECT id FROM study_plans 
+            WHERE user_id = ? AND status = 'active'
+        )
     ");
     $stmt->execute([
         $_POST['status'],
         $_POST['topic_id'],
-        $study_topics[0]['id']
+        $_SESSION['user_id']
     ]);
 
     header("Location: my-study-plan.php?success=1");
     exit();
+}
+
+// Aktif çalışma planını getir
+$stmt = $db->prepare("
+    SELECT 
+        sp.*,
+        ug.target_exam,
+        ug.target_date as goal_date
+    FROM study_plans sp
+    LEFT JOIN user_goals ug ON sp.goal_id = ug.id
+    WHERE sp.user_id = ? AND sp.status = 'active'
+");
+$stmt->execute([$_SESSION['user_id']]);
+$current_plan = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if ($current_plan) {
+    // Plan konularını getir
+    $stmt = $db->prepare("
+        SELECT 
+            st.*,
+            t.name as topic_name,
+            t.description as topic_description
+        FROM study_topics st
+        JOIN topics t ON st.topic_id = t.id
+        WHERE st.plan_id = ?
+        ORDER BY st.target_date ASC
+    ");
+    $stmt->execute([$current_plan['id']]);
+    $topics = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Konuları haftalara göre grupla
+    $weekly_plan = [];
+    foreach ($topics as $topic) {
+        $week = date('W', strtotime($topic['target_date']));
+        $weekly_plan[$week][] = $topic;
+    }
 }
 ?>
 
@@ -76,23 +91,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['topic_id'])) {
                     </div>
                 <?php endif; ?>
 
-                <?php if (empty($study_topics)): ?>
+                <?php if (!$current_plan): ?>
                     <div class="alert alert-info">
                         <h4 class="alert-heading">Henüz bir çalışma planınız yok!</h4>
                         <p>Çalışma planı oluşturmak için önce hedef belirlemelisiniz.</p>
                         <hr>
-                        <a href="my-goals.php" class="btn btn-primary">
-                            Hedef Belirle
+                        <a href="my-goals.php" class="btn btn-info">
+                            <i class="bi bi-bullseye"></i> Hedef Belirle
                         </a>
                     </div>
                 <?php else: ?>
+                    <!-- Plan Özeti -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5 class="card-title"><?php echo htmlspecialchars($current_plan['title']); ?></h5>
+                                    <p class="text-muted mb-0">
+                                        Hedef: <?php echo htmlspecialchars($current_plan['target_exam']); ?><br>
+                                        Süre: <?php echo date('d.m.Y', strtotime($current_plan['start_date'])); ?> - 
+                                              <?php echo date('d.m.Y', strtotime($current_plan['end_date'])); ?>
+                                    </p>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <div class="d-inline-block text-center me-3">
+                                        <h6 class="mb-1">Kalan Gün</h6>
+                                        <span class="badge bg-primary fs-5">
+                                            <?php 
+                                            $remaining = ceil((strtotime($current_plan['end_date']) - time()) / (60 * 60 * 24));
+                                            echo max(0, $remaining);
+                                            ?>
+                                        </span>
+                                    </div>
+                                    <div class="d-inline-block text-center">
+                                        <h6 class="mb-1">Genel İlerleme</h6>
+                                        <?php
+                                        $total_progress = 0;
+                                        $topic_count = count($topics);
+                                        foreach ($topics as $topic) {
+                                            $total_progress += $topic['completion_status'];
+                                        }
+                                        $avg_progress = $topic_count > 0 ? $total_progress / $topic_count : 0;
+                                        ?>
+                                        <div class="progress" style="width: 100px; height: 25px;">
+                                            <div class="progress-bar bg-success" 
+                                                 style="width: <?php echo $avg_progress; ?>%">
+                                                %<?php echo number_format($avg_progress, 0); ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Haftalık Plan -->
-                    <?php foreach ($weekly_plan as $week => $topics): ?>
+                    <?php foreach ($weekly_plan as $week => $week_topics): ?>
                         <div class="card mb-4">
                             <div class="card-header">
                                 <h5 class="mb-0">
-                                    <?php echo date('d.m.Y', strtotime("2024W{$week}")); ?> 
-                                    Haftası
+                                    <?php 
+                                    $week_start = date('d.m.Y', strtotime("2024W{$week}"));
+                                    $week_end = date('d.m.Y', strtotime("2024W{$week} +6 days"));
+                                    echo "{$week_start} - {$week_end}";
+                                    ?>
                                 </h5>
                             </div>
                             <div class="card-body">
@@ -101,15 +163,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['topic_id'])) {
                                         <thead>
                                             <tr>
                                                 <th>Konu</th>
+                                                <th>Açıklama</th>
                                                 <th>Tarih</th>
-                                                <th>Durum</th>
+                                                <th>İlerleme</th>
                                                 <th>İşlemler</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php foreach ($topics as $topic): ?>
+                                            <?php foreach ($week_topics as $topic): ?>
                                                 <tr>
                                                     <td><?php echo htmlspecialchars($topic['topic_name']); ?></td>
+                                                    <td><?php echo htmlspecialchars($topic['topic_description']); ?></td>
                                                     <td><?php echo date('d.m.Y', strtotime($topic['target_date'])); ?></td>
                                                     <td>
                                                         <div class="progress">
@@ -125,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['topic_id'])) {
                                                     <td>
                                                         <button class="btn btn-sm btn-primary" 
                                                                 onclick="updateProgress(<?php echo $topic['topic_id']; ?>)">
-                                                            İlerleme Güncelle
+                                                            <i class="bi bi-pencil"></i> İlerleme
                                                         </button>
                                                     </td>
                                                 </tr>
