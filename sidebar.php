@@ -84,6 +84,27 @@
                     Seviyeler
                 </a>
             </li>
+			<li class="nav-item">
+    <a class="nav-link <?php echo $current_page === 'study-plans.php' ? 'active' : ''; ?>" 
+       href="study-plans.php">
+        <i class="bi bi-calendar-check"></i>
+        Çalışma Planları
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link <?php echo $current_page === 'achievements.php' ? 'active' : ''; ?>" 
+       href="achievements.php">
+        <i class="bi bi-trophy"></i>
+        Başarı Rozetleri
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link <?php echo $current_page === 'analytics.php' ? 'active' : ''; ?>" 
+       href="analytics.php">
+        <i class="bi bi-graph-up"></i>
+        Başarı Analizleri
+    </a>
+</li>
             <!-- Raporlar -->
             <li class="nav-item">
                 <a class="nav-link" href="reports.php">
