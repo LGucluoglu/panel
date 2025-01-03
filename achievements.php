@@ -15,13 +15,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $name = $_POST['name'];
         $description = $_POST['description'];
         $icon = $_POST['icon'];
-        $criteria = json_encode($_POST['criteria']);
+        $criteria = json_encode([
+            'type' => $_POST['criteria_type'],
+            'value' => $_POST['criteria_value']
+        ]);
 
         $stmt = $db->prepare("
             INSERT INTO achievements (
-                name, description, icon, criteria, 
-                status, created_at
-            ) VALUES (?, ?, ?, ?, 'active', NOW())
+                name, description, icon, criteria
+            ) VALUES (?, ?, ?, ?)
         ");
         
         $stmt->execute([$name, $description, $icon, $criteria]);
@@ -52,12 +54,11 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Başarı Rozetleri Yönetimi - Admin Panel</title>
     <link rel="stylesheet" href="css/style.css">
-    <!-- Diğer CSS ve JS dosyaları -->
 </head>
 <body>
     <div class="container-fluid">
         <div class="row">
-            <?php include 'admin-sidebar.php'; ?>
+            <?php include 'sidebar.php'; ?>
 
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -81,7 +82,7 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <div class="card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center mb-3">
-                                        <i class="bi <?php echo htmlspecialchars($achievement['icon']); ?> fs-1 me-3"></i>
+                                        <i class="bi <?php echo htmlspecialchars($achievement['icon']); ?> fs-1 me-3 text-primary"></i>
                                         <div>
                                             <h5 class="card-title mb-1">
                                                 <?php echo htmlspecialchars($achievement['name']); ?>
@@ -94,6 +95,27 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <p class="card-text">
                                         <?php echo htmlspecialchars($achievement['description']); ?>
                                     </p>
+                                    <?php 
+                                    $criteria = json_decode($achievement['criteria'], true);
+                                    if ($criteria): 
+                                    ?>
+                                        <div class="alert alert-info mb-3">
+                                            <strong>Kazanma Kriteri:</strong><br>
+                                            <?php
+                                            switch ($criteria['type']) {
+                                                case 'exam_count':
+                                                    echo "En az {$criteria['value']} sınav tamamlama";
+                                                    break;
+                                                case 'avg_score':
+                                                    echo "En az %{$criteria['value']} ortalama başarı";
+                                                    break;
+                                                case 'study_time':
+                                                    echo "En az {$criteria['value']} saat çalışma";
+                                                    break;
+                                            }
+                                            ?>
+                                        </div>
+                                    <?php endif; ?>
                                     <div class="mt-3">
                                         <button class="btn btn-sm btn-info me-2" onclick="editAchievement(<?php echo $achievement['id']; ?>)">
                                             <i class="bi bi-pencil"></i> Düzenle
@@ -140,28 +162,20 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </div>
 
                                     <div class="mb-3">
-                                        <label class="form-label">Kazanma Kriterleri</label>
-                                        <div id="criteriaList">
-                                            <div class="criteria-item mb-2">
-                                                <div class="input-group">
-                                                    <select class="form-select" name="criteria[type][]">
-                                                        <option value="exam_count">Sınav Sayısı</option>
-                                                        <option value="avg_score">Ortalama Puan</option>
-                                                        <option value="study_time">Çalışma Süresi</option>
-                                                    </select>
-                                                    <input type="number" class="form-control" 
-                                                           name="criteria[value][]" placeholder="Değer">
-                                                    <button type="button" class="btn btn-outline-danger" 
-                                                            onclick="removeCriteria(this)">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </div>
+                                        <label class="form-label">Kazanma Kriteri</label>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <select class="form-select" name="criteria_type" required>
+                                                    <option value="exam_count">Sınav Sayısı</option>
+                                                    <option value="avg_score">Ortalama Puan</option>
+                                                    <option value="study_time">Çalışma Süresi</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input type="number" class="form-control" 
+                                                       name="criteria_value" placeholder="Değer" required>
                                             </div>
                                         </div>
-                                        <button type="button" class="btn btn-outline-primary btn-sm mt-2" 
-                                                onclick="addCriteriaField()">
-                                            <i class="bi bi-plus"></i> Kriter Ekle
-                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -177,39 +191,20 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
     <script>
-        function addCriteriaField() {
-            const html = `
-                <div class="criteria-item mb-2">
-                    <div class="input-group">
-                        <select class="form-select" name="criteria[type][]">
-                            <option value="exam_count">Sınav Sayısı</option>
-                            <option value="avg_score">Ortalama Puan</option>
-                            <option value="study_time">Çalışma Süresi</option>
-                        </select>
-                        <input type="number" class="form-control" 
-                               name="criteria[value][]" placeholder="Değer">
-                        <button type="button" class="btn btn-outline-danger" 
-                                onclick="removeCriteria(this)">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            document.getElementById('criteriaList').insertAdjacentHTML('beforeend', html);
-        }
-
-        function removeCriteria(button) {
-            button.closest('.criteria-item').remove();
-        }
-
         function editAchievement(id) {
-            // AJAX ile rozet bilgilerini getir ve modalı aç
+            // AJAX ile rozet bilgilerini getir
             fetch(`get-achievement.php?id=${id}`)
                 .then(response => response.json())
                 .then(data => {
-                    // Modal içeriğini doldur
-                    // ...
+                    document.querySelector('input[name="name"]').value = data.name;
+                    document.querySelector('textarea[name="description"]').value = data.description;
+                    document.querySelector('input[name="icon"]').value = data.icon;
+                    
+                    const criteria = JSON.parse(data.criteria);
+                    document.querySelector('select[name="criteria_type"]').value = criteria.type;
+                    document.querySelector('input[name="criteria_value"]').value = criteria.value;
+                    
+                    new bootstrap.Modal(document.getElementById('newAchievementModal')).show();
                 });
         }
 
