@@ -14,17 +14,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $target_exam = $_POST['target_exam'];
     $target_score = $_POST['target_score'];
     $target_date = $_POST['target_date'];
-    $notes = $_POST['notes'];
+    $notes = $_POST['notes'] ?? '';
 
+    // Mevcut aktif hedefi pasife çek
+    $stmt = $db->prepare("
+        UPDATE user_goals 
+        SET status = 'completed' 
+        WHERE user_id = ? AND status = 'active'
+    ");
+    $stmt->execute([$_SESSION['user_id']]);
+
+    // Yeni hedef ekle
     $stmt = $db->prepare("
         INSERT INTO user_goals (
             user_id, target_exam, target_score, 
             target_date, notes, status
         ) VALUES (?, ?, ?, ?, ?, 'active')
-        ON DUPLICATE KEY UPDATE
-            target_score = VALUES(target_score),
-            target_date = VALUES(target_date),
-            notes = VALUES(notes)
     ");
 
     $stmt->execute([
@@ -46,6 +51,15 @@ $stmt = $db->prepare("
 ");
 $stmt->execute([$_SESSION['user_id']]);
 $current_goal = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// Geçmiş hedefleri getir
+$stmt = $db->prepare("
+    SELECT * FROM user_goals 
+    WHERE user_id = ? AND status != 'active'
+    ORDER BY created_at DESC
+");
+$stmt->execute([$_SESSION['user_id']]);
+$past_goals = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // İlerleme durumunu hesapla
 if ($current_goal) {
@@ -85,7 +99,7 @@ if ($current_goal) {
                     </div>
                 <?php endif; ?>
 
-                <!-- Mevcut Hedef Kartı -->
+                <!-- Mevcut Hedef -->
                 <?php if ($current_goal): ?>
                     <div class="card mb-4">
                         <div class="card-body">
@@ -111,22 +125,23 @@ if ($current_goal) {
                                 <div class="col-md-4">
                                     <div class="text-center">
                                         <h6 class="mb-3">İlerleme Durumu</h6>
-                                        <div class="progress-circle">
-                                            <div class="progress" style="height: 150px; width: 150px;">
-                                                <?php
-                                                $percentage = min(100, ($progress['avg_score'] / $current_goal['target_score']) * 100);
-                                                $color = $percentage >= 100 ? 'success' : ($percentage >= 70 ? 'warning' : 'danger');
-                                                ?>
-                                                <div class="progress-bar bg-<?php echo $color; ?>"
-                                                     role="progressbar"
-                                                     style="width: <?php echo $percentage; ?>%"
-                                                     aria-valuenow="<?php echo $percentage; ?>"
-                                                     aria-valuemin="0"
-                                                     aria-valuemax="100">
-                                                    <?php echo number_format($percentage, 1); ?>%
-                                                </div>
+                                        <div class="progress mb-2" style="height: 20px;">
+                                            <?php
+                                            $percentage = min(100, ($progress['avg_score'] / $current_goal['target_score']) * 100);
+                                            $color = $percentage >= 100 ? 'success' : ($percentage >= 70 ? 'warning' : 'danger');
+                                            ?>
+                                            <div class="progress-bar bg-<?php echo $color; ?>"
+                                                 role="progressbar"
+                                                 style="width: <?php echo $percentage; ?>%"
+                                                 aria-valuenow="<?php echo $percentage; ?>"
+                                                 aria-valuemin="0"
+                                                 aria-valuemax="100">
+                                                %<?php echo number_format($percentage, 1); ?>
                                             </div>
                                         </div>
+                                        <small class="text-muted">
+                                            Mevcut Ortalama: %<?php echo number_format($progress['avg_score'], 1); ?>
+                                        </small>
                                     </div>
                                 </div>
                             </div>
@@ -135,7 +150,7 @@ if ($current_goal) {
                 <?php endif; ?>
 
                 <!-- Hedef Belirleme Formu -->
-                <div class="card">
+                <div class="card mb-4">
                     <div class="card-body">
                         <h4 class="card-title mb-4">
                             <?php echo $current_goal ? 'Hedefimi Güncelle' : 'Yeni Hedef Belirle'; ?>
@@ -177,6 +192,47 @@ if ($current_goal) {
                         </form>
                     </div>
                 </div>
+
+                <!-- Geçmiş Hedefler -->
+                <?php if (!empty($past_goals)): ?>
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Geçmiş Hedeflerim</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Hedef Sınav</th>
+                                            <th>Hedef Puan</th>
+                                            <th>Hedef Tarih</th>
+                                            <th>Durum</th>
+                                            <th>Oluşturma Tarihi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($past_goals as $goal): ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($goal['target_exam']); ?></td>
+                                                <td>%<?php echo $goal['target_score']; ?></td>
+                                                <td><?php echo date('d.m.Y', strtotime($goal['target_date'])); ?></td>
+                                                <td>
+                                                    <span class="badge bg-<?php 
+                                                        echo $goal['status'] === 'completed' ? 'success' : 'secondary';
+                                                    ?>">
+                                                        <?php echo $goal['status']; ?>
+                                                    </span>
+                                                </td>
+                                                <td><?php echo date('d.m.Y', strtotime($goal['created_at'])); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </main>
         </div>
     </div>
