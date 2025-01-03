@@ -84,31 +84,86 @@
                     Seviyeler
                 </a>
             </li>
-			<li class="nav-item">
-    <a class="nav-link <?php echo $current_page === 'study-plans.php' ? 'active' : ''; ?>" 
-       href="study-plans.php">
-        <i class="bi bi-calendar-check"></i>
-        Çalışma Planları
-    </a>
-</li>
-<li class="nav-item">
-    <a class="nav-link <?php echo $current_page === 'achievements.php' ? 'active' : ''; ?>" 
-       href="achievements.php">
-        <i class="bi bi-trophy"></i>
-        Başarı Rozetleri
-    </a>
-</li>
-<li class="nav-item">
-    <a class="nav-link <?php echo $current_page === 'analytics.php' ? 'active' : ''; ?>" 
-       href="analytics.php">
-        <i class="bi bi-graph-up"></i>
-        Başarı Analizleri
-    </a>
-</li>
+            <!-- Yeni Eklenen Menüler -->
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="collapse" href="#studyPlansSubmenu">
+                    <i class="bi bi-calendar-check me-2"></i>
+                    Çalışma Planları
+                    <i class="bi bi-chevron-down float-end"></i>
+                </a>
+                <div class="collapse" id="studyPlansSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link" href="study-plans.php">
+                                <i class="bi bi-list me-2"></i>
+                                Plan Listesi
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="create-study-plan.php">
+                                <i class="bi bi-plus-circle me-2"></i>
+                                Yeni Plan
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="collapse" href="#achievementsSubmenu">
+                    <i class="bi bi-trophy me-2"></i>
+                    Başarı Rozetleri
+                    <i class="bi bi-chevron-down float-end"></i>
+                </a>
+                <div class="collapse" id="achievementsSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link" href="achievements.php">
+                                <i class="bi bi-list me-2"></i>
+                                Rozet Listesi
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="create-achievement.php">
+                                <i class="bi bi-plus-circle me-2"></i>
+                                Yeni Rozet
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="collapse" href="#analyticsSubmenu">
+                    <i class="bi bi-graph-up me-2"></i>
+                    Başarı Analizleri
+                    <i class="bi bi-chevron-down float-end"></i>
+                </a>
+                <div class="collapse" id="analyticsSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link" href="analytics.php">
+                                <i class="bi bi-graph-up me-2"></i>
+                                Genel Analiz
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="student-analytics.php">
+                                <i class="bi bi-person-lines-fill me-2"></i>
+                                Öğrenci Analizi
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="topic-analytics.php">
+                                <i class="bi bi-book me-2"></i>
+                                Konu Analizi
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
             <!-- Raporlar -->
             <li class="nav-item">
                 <a class="nav-link" href="reports.php">
-                    <i class="bi bi-graph-up me-2"></i>
+                    <i class="bi bi-file-earmark-text me-2"></i>
                     Raporlar
                 </a>
             </li>
